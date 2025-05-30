@@ -3,3 +3,5 @@ requests
 moviepy
 gtts
 python-dotenv
+imageio[ffmpeg]
+tqdm
