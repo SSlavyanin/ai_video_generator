@@ -16,7 +16,7 @@ def generate_script(topic: str) -> list[str]:
     prompt = f"Напиши короткий сценарий из 4 фраз по теме: {topic}"
 
     payload = {
-        "model": "openai/gpt-3.5-turbo",  # можно заменить на другой, например openchat/openchat-7b
+        "model": "meta-llama/llama-4-maverick",  # можно заменить на другой, например openchat/openchat-7b
         "messages": [
             {"role": "system", "content": "Ты сценарист. Пиши краткие, выразительные фразы."},
             {"role": "user", "content": prompt}
