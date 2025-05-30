@@ -1,10 +1,9 @@
 import os
 import requests
-from config import PEXELS_API_KEY
 
 def download_video(query: str, filename: str):
     url = f"https://api.pexels.com/videos/search?query={query}&per_page=1"
-    headers = {"Authorization": PEXELS_API_KEY}
+    headers = {"Authorization": os.getenv("PEXELS_API_KEY")}
     r = requests.get(url, headers=headers)
     data = r.json()
     try:
