@@ -32,14 +32,17 @@ def download_video(query: str, filename: str):
 
     except Exception as e:
         print(f"[!] Ошибка при загрузке видео для '{query}': {e}")
-        raise e  # можно убрать raise, если хочешь продолжать при ошибке
+        raise e
+
 
 def get_video_clips(phrases: list[str]) -> list[str]:
     os.makedirs("assets/clips", exist_ok=True)
     paths = []
 
     for i, phrase in enumerate(phrases):
-        query = phrase.split()[0] if phrase.strip() else "abstract"
+        # Используем до 6 слов из фразы без кавычек
+        clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
+        query = " ".join(clean_phrase.split()[:6]) or "abstract"
         path = f"assets/clips/clip_{i}.mp4"
 
         try:
