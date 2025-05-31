@@ -1,24 +1,35 @@
 import os
-import moviepy.editor as mp  # Импортируем как alias для надёжности
+import gc
+import moviepy.editor as mp
 
-def build_video(video_paths: list[str], audio_paths: list[str], phrases: list[str], output_path="output/final.mp4"):
-    os.makedirs("output", exist_ok=True)
+def build_video(video_paths: list[str], audio_paths: list[str], output_path="static/videos/final_output.mp4"):
+    os.makedirs("static/videos", exist_ok=True)
     final_clips = []
 
     for i in range(len(video_paths)):
-        # Загружаем видео и аудио, ограничиваем видео до 5 сек, ставим высоту 720
-        video = mp.VideoFileClip(video_paths[i]).subclip(0, 5).resize(height=720)
-        audio = mp.AudioFileClip(audio_paths[i])
-        video = video.set_audio(audio)
+        try:
+            print(f"[~] Обрабатываю клип {i + 1} из {len(video_paths)}")
 
-        # Добавляем текстовую подпись
-        txt = mp.TextClip(phrases[i], fontsize=40, color='white', bg_color='black', size=video.size)
-        txt = txt.set_duration(video.duration).set_position('bottom')
+            # Загружаем видео, берем первые 3 секунды, уменьшаем высоту до 480
+            video = mp.VideoFileClip(video_paths[i]).subclip(0, 3).resize(height=480)
 
-        # Склеиваем видео и текст
-        composed = mp.CompositeVideoClip([video, txt])
-        final_clips.append(composed)
+            # Загружаем аудио и ставим его в видео
+            audio = mp.AudioFileClip(audio_paths[i])
+            video = video.set_audio(audio)
 
-    # Объединяем все клипы и сохраняем финальный файл
-    final_video = mp.concatenate_videoclips(final_clips)
-    final_video.write_videofile(output_path, fps=24)
+            final_clips.append(video)
+
+            # Чистим память после каждого клипа
+            del audio
+            gc.collect()
+
+        except Exception as e:
+            print(f"[!] Ошибка при обработке клипа {i}: {e}")
+
+    try:
+        print("[~] Склеиваю все видео в один файл...")
+        final_video = mp.concatenate_videoclips(final_clips)
+        final_video.write_videofile(output_path, fps=24, threads=2, preset='ultrafast')
+        print(f"[✓] Готово! Видео сохранено по пути: {output_path}")
+    except Exception as e:
+        print(f"[!] Ошибка при финальной сборке видео: {e}")
