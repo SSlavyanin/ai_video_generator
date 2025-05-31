@@ -30,7 +30,7 @@ def run(topic: str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = f"static/videos/final_{timestamp}.mp4"
 
-    build_video(video_paths, audio_paths, phrases, output_path=output_path)
+    build_video(video_paths, audio_paths, output_path=output_path)
     send_video_to_telegram(output_path)
 
 if __name__ == "__main__":
