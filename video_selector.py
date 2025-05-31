@@ -1,9 +1,13 @@
 import os
 import requests
+from text_generator import compress_scene  # Импортируем сжатие фразы
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 def download_video(query: str, filename: str):
+    """
+    Загружает первое подходящее видео по запросу с Pexels API и сохраняет в файл.
+    """
     if not PEXELS_API_KEY:
         raise ValueError("PEXELS_API_KEY не найден в переменных окружения.")
 
@@ -36,17 +40,26 @@ def download_video(query: str, filename: str):
 
 
 def get_video_clips(phrases: list[str]) -> list[str]:
+    """
+    Получает клипы по фразам:
+    - Сжимает каждую фразу до краткого смыслового запроса
+    - Загружает подходящее видео по этому запросу
+    - Сохраняет клип в папку assets/clips
+    """
     os.makedirs("assets/clips", exist_ok=True)
     paths = []
 
     for i, phrase in enumerate(phrases):
-        # Используем до 6 слов из фразы без кавычек
+        # Очистка фразы от кавычек
         clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
-        query = " ".join(clean_phrase.split()[:6]) or "abstract"
+        
+        # Сжимаем смысл до короткого видеозапроса
+        search_query = compress_scene(clean_phrase)
+
         path = f"assets/clips/clip_{i}.mp4"
 
         try:
-            download_video(query, path)
+            download_video(search_query, path)
             paths.append(path)
         except Exception as e:
             print(f"[!] Пропуск видео для фразы: '{phrase}' — {e}")
