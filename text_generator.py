@@ -10,13 +10,16 @@ HEADERS = {
 }
 
 def generate_script(topic: str) -> list[str]:
+    """
+    Генерирует краткий сценарий (4 фразы) по заданной теме через OpenRouter + LLaMA.
+    """
     if not OPENROUTER_API_KEY:
         raise RuntimeError("Не найден OPENROUTER_API_KEY в .env")
 
     prompt = f"Напиши короткий сценарий из 4 фраз по теме: {topic}"
 
     payload = {
-        "model": "meta-llama/llama-4-maverick",  # можно заменить на другой, например openchat/openchat-7b
+        "model": "meta-llama/llama-4-maverick",
         "messages": [
             {"role": "system", "content": "Ты сценарист. Пиши краткие, выразительные фразы."},
             {"role": "user", "content": prompt}
@@ -38,7 +41,10 @@ def generate_script(topic: str) -> list[str]:
 
 
 def compress_scene(text: str) -> str:
-    """Сжать фразу до видеозапроса по смыслу (через GPT)"""
+    """
+    Сжимает длинную фразу до краткого видеозапроса для поиска подходящей сцены.
+    Пример: из 'Я вечно в долгах, не понимаю как другие копят' -> 'женщина переживает финансовые трудности'
+    """
     prompt = f"Из этой фразы сделай короткий видеозапрос по смыслу, например 'женщина грустит у окна', 'мужчина в офисе':\n{text}\n\nВидеозапрос:"
 
     payload = {
@@ -53,11 +59,12 @@ def compress_scene(text: str) -> str:
         response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=15)
         response.raise_for_status()
         data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        compressed = data["choices"][0]["message"]["content"].strip()
+        print(f"[compress_scene] '{text}' -> '{compressed}'")
+        return compressed
     except requests.exceptions.RequestException as e:
         print(f"[Compress API Error] {e}")
-        return text  # fallback: вернём оригинал
+        return text  # fallback
     except (KeyError, IndexError) as e:
         print(f"[Compress JSON Parse Error] {e}")
         return text  # fallback
-
