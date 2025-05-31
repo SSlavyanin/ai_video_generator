@@ -1,5 +1,6 @@
 import os
 import requests
+from moviepy.editor import VideoFileClip
 from text_generator import compress_scene  # Импортируем сжатие фразы
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -41,27 +42,38 @@ def download_video(query: str, filename: str):
 
 def get_video_clips(phrases: list[str]) -> list[str]:
     """
-    Получает клипы по фразам:
-    - Сжимает каждую фразу до краткого смыслового запроса
-    - Загружает подходящее видео по этому запросу
-    - Сохраняет клип в папку assets/clips
+    Обрабатывает первые 4 фразы:
+    - Сжимает каждую фразу до короткого запроса
+    - Загружает подходящее видео по запросу
+    - Обрезает каждый клип до 7 секунд
+    - Удаляет временные raw-клипы
+    - Сохраняет финальные клипы в assets/clips
     """
     os.makedirs("assets/clips", exist_ok=True)
     paths = []
 
-    for i, phrase in enumerate(phrases):
-        # Очистка фразы от кавычек
-        clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
-        
-        # Сжимаем смысл до короткого видеозапроса
-        search_query = compress_scene(clean_phrase)
+    selected_phrases = phrases[:4]  # Берём первые 4 фразы
 
-        path = f"assets/clips/clip_{i}.mp4"
+    for i, phrase in enumerate(selected_phrases):
+        clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
+        search_query = compress_scene(clean_phrase)
+        raw_path = f"assets/clips/raw_{i}.mp4"
+        final_path = f"assets/clips/clip_{i}.mp4"
 
         try:
-            download_video(search_query, path)
-            paths.append(path)
+            download_video(search_query, raw_path)
+
+            clip = VideoFileClip(raw_path).subclip(0, 7)
+            clip.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+            paths.append(final_path)
+
+            print(f"[~] Обработан клип {i + 1} из {len(selected_phrases)}")
+
         except Exception as e:
-            print(f"[!] Пропуск видео для фразы: '{phrase}' — {e}")
+            print(f"[!] Проблема с фразой '{phrase}': {e}")
+        finally:
+            # Удаляем временный raw-файл
+            if os.path.exists(raw_path):
+                os.remove(raw_path)
 
     return paths
