@@ -1,18 +1,19 @@
 import os
 import requests
-from moviepy.editor import VideoFileClip
-from text_generator import compress_scene  # Импортируем сжатие фразы
+import moviepy.editor as mp
+from text_generator import compress_scene
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
-def download_video(query: str, filename: str):
+def download_video_min_duration(query: str, filename: str, min_duration: float = 7.0) -> bool:
     """
-    Загружает первое подходящее видео по запросу с Pexels API и сохраняет в файл.
+    Скачивает первое подходящее видео с Pexels API, которое длится минимум `min_duration` секунд.
+    Сохраняет файл как `filename`. Возвращает True, если успешно.
     """
     if not PEXELS_API_KEY:
         raise ValueError("PEXELS_API_KEY не найден в переменных окружения.")
 
-    url = f"https://api.pexels.com/videos/search?query={query}&per_page=1"
+    url = f"https://api.pexels.com/videos/search?query={query}&per_page=5"
     headers = {"Authorization": PEXELS_API_KEY}
 
     try:
@@ -20,39 +21,57 @@ def download_video(query: str, filename: str):
         response.raise_for_status()
         data = response.json()
 
-        if not data.get("videos"):
-            raise ValueError(f"Нет видео для запроса: '{query}'")
+        videos = data.get("videos", [])
+        if not videos:
+            print(f"[!] Нет видео для запроса: '{query}'")
+            return False
 
-        video_files = data["videos"][0].get("video_files", [])
-        if not video_files:
-            raise ValueError(f"Нет файлов у первого видео по запросу: '{query}'")
+        for video in videos:
+            files = video.get("video_files", [])
+            for f in files:
+                if f.get("width", 0) >= 640 and f.get("quality") == "hd":
+                    video_url = f["link"]
+                    temp_path = filename + ".tmp"
+                    video_data = requests.get(video_url, timeout=15).content
 
-        video_url = video_files[0]["link"]
-        video_data = requests.get(video_url, timeout=15).content
+                    with open(temp_path, "wb") as f_out:
+                        f_out.write(video_data)
 
-        with open(filename, "wb") as f:
-            f.write(video_data)
+                    try:
+                        clip = mp.VideoFileClip(temp_path)
+                        if clip.duration >= min_duration:
+                            os.rename(temp_path, filename)
+                            clip.close()
+                            print(f"[✓] Скачано видео для запроса: {query}")
+                            return True
+                        else:
+                            clip.close()
+                            os.remove(temp_path)
+                    except Exception as e:
+                        print(f"[!] Ошибка при проверке видео: {e}")
+                        if os.path.exists(temp_path):
+                            os.remove(temp_path)
 
-        print(f"[✓] Скачано видео для запроса: {query}")
+        print(f"[!] Нет подходящих видео ≥ {min_duration} сек для запроса: '{query}'")
+        return False
 
     except Exception as e:
         print(f"[!] Ошибка при загрузке видео для '{query}': {e}")
-        raise e
+        return False
 
 
 def get_video_clips(phrases: list[str]) -> list[str]:
     """
-    Обрабатывает первые 4 фразы:
-    - Сжимает каждую фразу до короткого запроса
-    - Загружает подходящее видео по запросу
-    - Обрезает каждый клип до 7 секунд
-    - Удаляет временные raw-клипы
-    - Сохраняет финальные клипы в assets/clips
+    Получает 4 подходящих клипа по фразам:
+    - Сжимает смысл до краткого запроса
+    - Ищет и скачивает видео ≥ 7 сек
+    - Обрезает до 7 сек
+    - Сохраняет в assets/clips/clip_X.mp4
     """
     os.makedirs("assets/clips", exist_ok=True)
     paths = []
 
-    selected_phrases = phrases[:4]  # Берём первые 4 фразы
+    selected_phrases = phrases[:4]
 
     for i, phrase in enumerate(selected_phrases):
         clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
@@ -61,18 +80,28 @@ def get_video_clips(phrases: list[str]) -> list[str]:
         final_path = f"assets/clips/clip_{i}.mp4"
 
         try:
-            download_video(search_query, raw_path)
+            success = download_video_min_duration(search_query, raw_path)
+            if not success:
+                continue
 
-            clip = VideoFileClip(raw_path).subclip(0, 7)
-            clip.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+            clip = mp.VideoFileClip(raw_path)
+            print(f"[i] Длительность видео {i + 1}: {clip.duration:.2f} сек")
+
+            end_time = min(7, clip.duration)
+            subclip = clip.subclip(0, end_time)
+
+            subclip.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
             paths.append(final_path)
+
+            clip.close()
+            subclip.close()
 
             print(f"[~] Обработан клип {i + 1} из {len(selected_phrases)}")
 
         except Exception as e:
             print(f"[!] Проблема с фразой '{phrase}': {e}")
+
         finally:
-            # Удаляем временный raw-файл
             if os.path.exists(raw_path):
                 os.remove(raw_path)
 
