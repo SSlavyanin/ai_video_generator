@@ -5,3 +5,5 @@ gtts
 python-dotenv
 imageio[ffmpeg]
 tqdm
+Pillow<10.0.0
+
