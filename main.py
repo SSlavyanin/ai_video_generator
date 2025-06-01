@@ -11,6 +11,9 @@ from video_builder import build_video
 import requests
 from threading import Lock
 from run_all_endpoint import router
+import logging
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 
 app = FastAPI()
