@@ -88,40 +88,40 @@ def get_video_clips(phrases: list[str]) -> list[str]:
     selected_phrases = phrases[:4]
 
     for i, phrase in enumerate(selected_phrases):
-        logging.info(f"Обработка фразы {i+1}: {phrase}")
+        logging.info(f"[get_video_clips] Обработка фразы {i + 1}: {phrase}")
         clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
         search_query = compress_scene(clean_phrase)
-        logging.info(f"  Сжатый поисковый запрос: '{search_query}'")
+        logging.info(f"[get_video_clips]   Сжатый поисковый запрос: '{search_query}'")
 
         raw_path = f"assets/clips/raw_{i}.mp4"
         final_path = f"assets/clips/clip_{i}.mp4"
 
         try:
-            logging.info("  Скачиваем видео...")
+            logging.info("[get_video_clips]   Скачиваем видео...")
             success = download_video_min_duration(search_query, raw_path)
             if not success:
-                logging.warning("  Видео не найдено или не скачано")
+                logging.warning("[get_video_clips]   Видео не найдено или не скачано")
                 continue
 
-            logging.info("  Загружаем скачанное видео для обработки...")
+            logging.info("[get_video_clips]   Загружаем скачанное видео для обработки...")
             clip = mp.VideoFileClip(raw_path)
-            logging.info(f"  Длительность видео: {clip.duration:.2f} сек")
+            logging.info(f"[get_video_clips]   Длительность видео: {clip.duration:.2f} сек")
 
             end_time = min(7, clip.duration)
-            logging.info(f"  Нарезаем видео до {end_time} сек")
+            logging.info(f"[get_video_clips]   Нарезаем видео до {end_time} сек")
             subclip = clip.subclip(0, end_time)
 
-            logging.info("  Записываем итоговый клип...")
+            logging.info("[get_video_clips]   Записываем итоговый клип...")
             subclip.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
             paths.append(final_path)
 
             clip.close()
             subclip.close()
 
-            logging.info(f"  Клип {i+1} обработан успешно")
+            logging.info(f"[get_video_clips]   Клип {i + 1} обработан успешно")
 
         except Exception as e:
-            logging.error(f"  Ошибка при обработке фразы '{phrase}': {e}")
+            logging.error(f"[get_video_clips]   Ошибка при обработке фразы '{phrase}': {e}")
 
         finally:
             if os.path.exists(raw_path):
@@ -129,4 +129,5 @@ def get_video_clips(phrases: list[str]) -> list[str]:
 
     logging.info("Обработка фраз завершена")
     return paths
+
 
