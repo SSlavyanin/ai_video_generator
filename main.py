@@ -10,6 +10,8 @@ from video_selector import get_video_clips
 from video_builder import build_video
 import requests
 from threading import Lock
+from run_all_endpoint import router
+
 
 app = FastAPI()
 
@@ -116,3 +118,5 @@ def send_video(session_id: str):
         raise HTTPException(status_code=500, detail=f"Ошибка отправки: {response.text}")
 
 
+
+app.include_router(router)
