@@ -9,14 +9,14 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 def download_video_min_duration(query: str, filename: str, min_duration: float = 7.0) -> bool:
     """
-    Скачивает первое подходящее видео с Pexels API, которое длится минимум `min_duration` секунд.
-    Сохраняет файл как `filename`. Возвращает True, если успешно.
+    Скачивает подходящее видео с Pexels по запросу. 
+    Проверяет, что видео не битое и >= min_duration секунд.
     """
     logging.info(f"[download_video_min_duration] Старт поиска видео по запросу: '{query}'")
 
     if not PEXELS_API_KEY:
-        logging.error("[download_video_min_duration] Ошибка: PEXELS_API_KEY не найден в переменных окружения.")
-        raise ValueError("PEXELS_API_KEY не найден в переменных окружения.")
+        logging.error("[download_video_min_duration] Ошибка: PEXELS_API_KEY не найден.")
+        raise ValueError("PEXELS_API_KEY не найден.")
 
     url = f"https://api.pexels.com/videos/search?query={query}&per_page=5"
     headers = {"Authorization": PEXELS_API_KEY}
@@ -44,14 +44,15 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
                     logging.info(f"[download_video_min_duration] Пытаемся скачать видео: {video_url}")
 
                     try:
-                        with requests.get(video_url, timeout=15, stream=True) as r:
+                        with requests.get(video_url, timeout=20, stream=True) as r:
                             r.raise_for_status()
                             with open(temp_path, "wb") as f_out:
                                 for chunk in r.iter_content(chunk_size=8192):
-                                    f_out.write(chunk)
+                                    if chunk:
+                                        f_out.write(chunk)
                         logging.info(f"[download_video_min_duration] Видео сохранено во временный файл: {temp_path}")
                     except Exception as e:
-                        logging.error(f"[download_video_min_duration] Ошибка при скачивании видео: {e}")
+                        logging.error(f"[download_video_min_duration] Ошибка при скачивании: {e}")
                         continue
 
                     try:
@@ -60,22 +61,22 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
                         if clip.duration >= min_duration:
                             clip.close()
                             os.rename(temp_path, filename)
-                            logging.info(f"[download_video_min_duration] Видео подходит по длительности и сохранено как: {filename}")
+                            logging.info(f"[download_video_min_duration] Видео подходит и сохранено как: {filename}")
                             return True
                         else:
                             clip.close()
                             os.remove(temp_path)
-                            logging.info(f"[download_video_min_duration] Видео слишком короткое (<{min_duration} сек), удаляем")
+                            logging.info(f"[download_video_min_duration] Слишком короткое видео (<{min_duration} сек), удаляем")
                     except Exception as e:
-                        logging.error(f"[download_video_min_duration] Ошибка при проверке видео: {e}")
+                        logging.error(f"[download_video_min_duration] Видео повреждено или не читается: {e}")
                         if os.path.exists(temp_path):
                             os.remove(temp_path)
 
-        logging.warning(f"[download_video_min_duration] Нет подходящих видео ≥ {min_duration} сек для запроса: '{query}'")
+        logging.warning(f"[download_video_min_duration] Не найдено годных видео по '{query}'")
         return False
 
     except Exception as e:
-        logging.error(f"[download_video_min_duration] Ошибка при загрузке видео для '{query}': {e}")
+        logging.error(f"[download_video_min_duration] Ошибка при обращении к Pexels: {e}")
         return False
 
 
