@@ -44,14 +44,15 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
                     logging.info(f"[download_video_min_duration] Пытаемся скачать видео: {video_url}")
 
                     try:
-                        video_data = requests.get(video_url, timeout=15).content
+                        with requests.get(video_url, timeout=15, stream=True) as r:
+                            r.raise_for_status()
+                            with open(temp_path, "wb") as f_out:
+                                for chunk in r.iter_content(chunk_size=8192):
+                                    f_out.write(chunk)
+                        logging.info(f"[download_video_min_duration] Видео сохранено во временный файл: {temp_path}")
                     except Exception as e:
                         logging.error(f"[download_video_min_duration] Ошибка при скачивании видео: {e}")
                         continue
-
-                    with open(temp_path, "wb") as f_out:
-                        f_out.write(video_data)
-                    logging.info(f"[download_video_min_duration] Видео сохранено во временный файл: {temp_path}")
 
                     try:
                         clip = mp.VideoFileClip(temp_path)
