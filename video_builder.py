@@ -1,5 +1,6 @@
 import os
 import gc
+import logging
 import moviepy.editor as mp
 
 def build_video(video_paths: list[str], audio_paths: list[str], output_path="static/videos/final_output.mp4"):
