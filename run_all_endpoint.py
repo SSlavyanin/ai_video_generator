@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
-BASE_URL = "http://localhost:8000"  # или URL FastAPI на Render
+BASE_URL = "https://ai-video-generator-shuy.onrender.com"  # URL FastAPI на Render
 
 class TopicRequest(BaseModel):
     topic: str
