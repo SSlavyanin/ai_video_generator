@@ -49,6 +49,12 @@ def cleanup_old_files(hours=1):
                 except Exception as e:
                     print(f"[Cleanup] Ошибка удаления файла {filename}: {e}")
 
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
 @app.post("/generate_text")
 def generate_text(req: TopicRequest):
     cleanup_old_files()
@@ -56,6 +62,7 @@ def generate_text(req: TopicRequest):
     session_id = str(int(time.time()*1000))
     save_data(session_id, {"phrases": phrases})
     return {"session_id": session_id, "phrases": phrases}
+
 
 @app.post("/generate_voice/{session_id}")
 def generate_voice(session_id: str):
@@ -67,6 +74,7 @@ def generate_voice(session_id: str):
     save_data(session_id, data)
     return {"audio_paths": audio_paths}
 
+
 @app.post("/download_video/{session_id}")
 def download_video(session_id: str):
     data = load_data(session_id)
@@ -76,6 +84,7 @@ def download_video(session_id: str):
     data["video_paths"] = video_paths
     save_data(session_id, data)
     return {"video_paths": video_paths}
+
 
 @app.post("/build_video/{session_id}")
 def build_final_video(session_id: str):
@@ -92,6 +101,7 @@ def build_final_video(session_id: str):
     data["output_path"] = output_path
     save_data(session_id, data)
     return {"output_path": output_path}
+
 
 @app.post("/send_video/{session_id}")
 def send_video(session_id: str):
