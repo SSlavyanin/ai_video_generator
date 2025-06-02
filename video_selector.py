@@ -2,16 +2,13 @@ import os
 import requests
 import logging
 import moviepy.editor as mp
+import time
 from text_generator import compress_scene
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 
 
 def download_video_min_duration(query: str, filename: str, min_duration: float = 7.0) -> bool:
-    """
-    Скачивает подходящее видео с Pexels по запросу. 
-    Проверяет, что видео не битое и >= min_duration секунд.
-    """
     logging.info(f"[download_video_min_duration] Старт поиска видео по запросу: '{query}'")
 
     if not PEXELS_API_KEY:
@@ -59,11 +56,19 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
                         clip = mp.VideoFileClip(temp_path)
                         logging.info(f"[download_video_min_duration] Проверяем длительность видео: {clip.duration:.2f} сек")
                         if clip.duration >= min_duration:
+                            if clip.reader:
+                                clip.reader.close()
+                            if clip.audio and clip.audio.reader:
+                                clip.audio.reader.close_proc()
                             clip.close()
                             os.rename(temp_path, filename)
                             logging.info(f"[download_video_min_duration] Видео подходит и сохранено как: {filename}")
                             return True
                         else:
+                            if clip.reader:
+                                clip.reader.close()
+                            if clip.audio and clip.audio.reader:
+                                clip.audio.reader.close_proc()
                             clip.close()
                             os.remove(temp_path)
                             logging.info(f"[download_video_min_duration] Слишком короткое видео (<{min_duration} сек), удаляем")
@@ -78,7 +83,6 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
     except Exception as e:
         logging.error(f"[download_video_min_duration] Ошибка при обращении к Pexels: {e}")
         return False
-
 
 
 def get_video_clips(phrases: list[str]) -> list[str]:
@@ -104,6 +108,8 @@ def get_video_clips(phrases: list[str]) -> list[str]:
                 logging.warning("[get_video_clips]   Видео не найдено или не скачано")
                 continue
 
+            time.sleep(0.3)  # ждём завершения всех процессов
+
             logging.info("[get_video_clips]   Загружаем скачанное видео для обработки...")
             clip = mp.VideoFileClip(raw_path)
             logging.info(f"[get_video_clips]   Длительность видео: {clip.duration:.2f} сек")
@@ -118,7 +124,6 @@ def get_video_clips(phrases: list[str]) -> list[str]:
 
             clip.close()
             subclip.close()
-
             logging.info(f"[get_video_clips]   Клип {i + 1} обработан успешно")
 
         except Exception as e:
@@ -126,9 +131,11 @@ def get_video_clips(phrases: list[str]) -> list[str]:
 
         finally:
             if os.path.exists(raw_path):
-                os.remove(raw_path)
+                try:
+                    os.remove(raw_path)
+                    logging.info(f"[get_video_clips]   Удалён временный файл: {raw_path}")
+                except Exception as e:
+                    logging.warning(f"[get_video_clips]   Не удалось удалить временный файл: {e}")
 
     logging.info("Обработка фраз завершена")
     return paths
-
-
