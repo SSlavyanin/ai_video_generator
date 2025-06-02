@@ -43,15 +43,15 @@ def generate_script(topic: str) -> list[str]:
 
 def compress_scene(text: str) -> str:
     """
-    Сжимает длинную фразу до краткого видеозапроса для поиска подходящей сцены.
-    Пример: из 'Я вечно в долгах, не понимаю как другие копят' -> 'женщина переживает финансовые трудности'
+    Сжимает длинную фразу до краткого запроса для поиска подходящей видеосцены.
+    Пример: 'Я вечно в долгах, не понимаю как другие копят' → 'женщина переживает финансовые трудности'
     """
-    prompt = f"Из этой фразы сделай короткий видеозапрос по смыслу, например 'женщина грустит у окна', 'мужчина в офисе':\n{text}\n\nВидеозапрос:"
+    prompt = f"Сделай из этой фразы короткий, визуальный видеозапрос (не описание, а сцену):\n{text}"
 
     payload = {
         "model": "meta-llama/llama-4-maverick",
         "messages": [
-            {"role": "system", "content": "Ты описываешь сцену для поиска видео. Ответ — короткий, визуальный, без кавычек."},
+            {"role": "system", "content": "Ты создаёшь краткий визуальный видеозапрос по смыслу. Без кавычек. Без пояснений. Только короткая сцена."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -60,12 +60,20 @@ def compress_scene(text: str) -> str:
         response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=15)
         response.raise_for_status()
         data = response.json()
+
         compressed = data["choices"][0]["message"]["content"].strip()
+
+        # Фильтруем всякие подсказки и мусор
+        if "\n" in compressed or "пример" in compressed.lower() or "твоя фраза" in compressed.lower():
+            raise ValueError("Ответ GPT содержит невалидные элементы")
+
         print(f"[compress_scene] '{text}' -> '{compressed}'")
         return compressed
-    except requests.exceptions.RequestException as e:
-        print(f"[Compress API Error] {e}")
+
+    except (requests.exceptions.RequestException, ValueError) as e:
+        print(f"[Compress Error] {e}")
         return text  # fallback
     except (KeyError, IndexError) as e:
         print(f"[Compress JSON Parse Error] {e}")
         return text  # fallback
+
