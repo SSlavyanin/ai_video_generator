@@ -1,8 +1,8 @@
 import os
+import time
 import requests
 import logging
 import moviepy.editor as mp
-import time
 from text_generator import compress_scene
 
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -19,6 +19,7 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
     headers = {"Authorization": PEXELS_API_KEY}
 
     try:
+        logging.info("[download_video_min_duration] Отправляем запрос к Pexels API...")
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
@@ -37,96 +38,108 @@ def download_video_min_duration(query: str, filename: str, min_duration: float =
                 if width >= 640 and quality == "hd":
                     video_url = f["link"]
                     temp_path = filename + ".tmp"
-                    logging.info(f"[download_video_min_duration] Скачиваем видео: {video_url}")
+                    logging.info(f"[download_video_min_duration] Пытаемся скачать видео: {video_url}")
 
                     try:
-                        with requests.get(video_url, timeout=20, stream=True) as r:
+                        head = requests.head(video_url, timeout=10)
+                        content_length = int(head.headers.get("Content-Length", 0))
+                        logging.info(f"[download_video_min_duration] Ожидаемый размер: {content_length} байт")
+
+                        with requests.get(video_url, timeout=30, stream=True) as r:
                             r.raise_for_status()
                             with open(temp_path, "wb") as f_out:
+                                total = 0
                                 for chunk in r.iter_content(chunk_size=8192):
                                     if chunk:
                                         f_out.write(chunk)
-                        logging.info(f"[download_video_min_duration] Видео скачано: {temp_path}")
+                                        total += len(chunk)
+
+                        if content_length > 0 and abs(total - content_length) > 50000:
+                            logging.warning(f"[download_video_min_duration] Размер скачанного файла не совпадает с ожидаемым: {total} ≠ {content_length}")
+                            os.remove(temp_path)
+                            continue
+
+                        logging.info(f"[download_video_min_duration] Видео сохранено во временный файл: {temp_path}")
                     except Exception as e:
                         logging.error(f"[download_video_min_duration] Ошибка при скачивании: {e}")
                         continue
 
                     try:
+                        time.sleep(0.5)
                         clip = mp.VideoFileClip(temp_path)
-                        duration = clip.duration
-                        logging.info(f"[download_video_min_duration] Длительность видео: {duration:.2f} сек")
-                        if duration >= min_duration:
-                            clip.reader.close()
-                            if clip.audio and clip.audio.reader:
-                                clip.audio.reader.close_proc()
+                        logging.info(f"[download_video_min_duration] Проверяем длительность видео: {clip.duration:.2f} сек")
+                        if clip.duration >= min_duration:
                             clip.close()
                             os.rename(temp_path, filename)
-                            logging.info(f"[download_video_min_duration] Видео подходит: {filename}")
+                            logging.info(f"[download_video_min_duration] Видео подходит и сохранено как: {filename}")
                             return True
                         else:
-                            clip.reader.close()
-                            if clip.audio and clip.audio.reader:
-                                clip.audio.reader.close_proc()
                             clip.close()
                             os.remove(temp_path)
-                            logging.info(f"[download_video_min_duration] Видео слишком короткое, удалено")
+                            logging.info(f"[download_video_min_duration] Слишком короткое видео (<{min_duration} сек), удаляем")
                     except Exception as e:
-                        logging.error(f"[download_video_min_duration] Видео повреждено: {e}")
+                        logging.error(f"[download_video_min_duration] Видео повреждено или не читается: {e}")
                         if os.path.exists(temp_path):
                             os.remove(temp_path)
 
-        logging.warning(f"[download_video_min_duration] Нет подходящих видео по запросу: '{query}'")
+        logging.warning(f"[download_video_min_duration] Не найдено годных видео по '{query}'")
         return False
 
     except Exception as e:
-        logging.error(f"[download_video_min_duration] Ошибка API: {e}")
+        logging.error(f"[download_video_min_duration] Ошибка при обращении к Pexels: {e}")
         return False
 
 
+
 def get_video_clips(phrases: list[str]) -> list[str]:
-    logging.info("=== Старт обработки фраз ===")
+    logging.info("Старт обработки фраз")
     os.makedirs("assets/clips", exist_ok=True)
     paths = []
 
     selected_phrases = phrases[:4]
 
     for i, phrase in enumerate(selected_phrases):
-        logging.info(f"[get_video_clips] Фраза {i + 1}: {phrase}")
+        logging.info(f"[get_video_clips] Обработка фразы {i + 1}: {phrase}")
         clean_phrase = phrase.replace('"', '').replace("«", "").replace("»", "").strip()
         search_query = compress_scene(clean_phrase)
-        logging.info(f"[get_video_clips] Поисковый запрос: '{search_query}'")
+        logging.info(f"[get_video_clips]   Сжатый поисковый запрос: '{search_query}'")
 
         raw_path = f"assets/clips/raw_{i}.mp4"
         final_path = f"assets/clips/clip_{i}.mp4"
 
         try:
+            logging.info("[get_video_clips]   Скачиваем видео...")
             success = download_video_min_duration(search_query, raw_path)
             if not success:
-                logging.warning("[get_video_clips] Не удалось скачать видео")
+                logging.warning("[get_video_clips]   Видео не найдено или не скачано")
                 continue
 
-            time.sleep(0.5)  # дожидаемся освобождения файла
+            logging.info("[get_video_clips]   Пауза перед чтением видеофайла...")
+            time.sleep(0.5)
 
-            logging.info("[get_video_clips] Загружаем видео...")
+            logging.info("[get_video_clips]   Загружаем скачанное видео для обработки...")
             clip = mp.VideoFileClip(raw_path)
-            logging.info(f"[get_video_clips] Длительность: {clip.duration:.2f} сек")
+            logging.info(f"[get_video_clips]   Длительность видео: {clip.duration:.2f} сек")
 
             end_time = min(7, clip.duration)
-            logging.info(f"[get_video_clips] Нарезка: 0–{end_time:.2f} сек")
+            logging.info(f"[get_video_clips]   Нарезаем видео до {end_time} сек")
             subclip = clip.subclip(0, end_time)
 
-            logging.info("[get_video_clips] Сохраняем итоговый клип...")
+            logging.info("[get_video_clips]   Записываем итоговый клип...")
             subclip.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
             paths.append(final_path)
 
             clip.close()
             subclip.close()
-            time.sleep(0.3)  # на всякий случай, дать ffmpeg закрыть файл
 
-            logging.info(f"[get_video_clips] Клип {i + 1} готов")
+            logging.info(f"[get_video_clips]   Клип {i + 1} обработан успешно")
 
         except Exception as e:
-            logging.error(f"[get_video_clips] Ошибка при обработке '{phrase}': {e}")
+            logging.error(f"[get_video_clips]   Ошибка при обработке фразы '{phrase}': {e}")
 
-    logging.info("=== Обработка завершена ===")
+        # ❗ Не удаляем raw-файлы сразу — MoviePy/FFmpeg может всё ещё держать их в кэше
+        # if os.path.exists(raw_path):
+        #     os.remove(raw_path)
+
+    logging.info("Обработка фраз завершена")
     return paths
